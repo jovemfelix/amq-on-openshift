@@ -49,7 +49,7 @@ spec:
 [NOTE]
 Regular users may not have permissions to create _ServiceMonitors_. Add the `monitoring-edit` _ClusterRole_ to the _User_ or _ServiceAccount_ creating those resources.
 
-To check if the metrics are collected, query one of https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.10/html-single/deploying_amq_broker_on_openshift/index#assembly_br-monitoring-broker-runtime-data-using-prometheus_broker-ocp[Artemis metrics] (e.g `artemis_address_memory_usage`) via OpenShift's _Observe_ menu or directly from Prometheus.
+To check if the metrics are collected, query one of https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.11/html-single/deploying_amq_broker_on_openshift/index#assembly_br-monitoring-broker-runtime-data-using-prometheus_broker-ocp[Artemis metrics] (e.g `artemis_address_memory_usage`) via OpenShift's _Observe_ menu or directly from Prometheus.
 
 == Dashboard
 

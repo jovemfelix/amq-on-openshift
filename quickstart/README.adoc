@@ -1,25 +1,148 @@
 = Quickstart
 
-Use the _OperatorHub_ in OpenShift to install the _Red Hat Integration - AMQ Broker for RHEL8_ operator namespace scoped. Create an _ActiveMQArtemis_ instance like this:
+Use the _OperatorHub_ in OpenShift to install the _Red Hat Integration - AMQ Broker for RHEL8_ operator namespace scoped.
 
+== Requirements
+* Have the https://docs.oracle.com/javase/8/docs/technotes/tools/unix/keytool.html[*keytool*]
+* Have already *logged* in the cluster (Openshift 4.x)
+* Have already *created a project* into the cluster and be inside it (eg: `oc new-project amq`)
+* Have already *installed the Red Hat Integration - AMQ Broker for RHEL 8 (Multiarch)* into the cluster
+* Have the *openshift client* configured
+
+== Variables
+```shell
+WILDCARD_DOMAIN=$(oc whoami --show-console 2> /dev/null | cut -d '.' -f2- | cut -d ':' -f1)
+
+BROKER_NS=$(oc project | awk -F\" '{print $2}')
+BROKER_NAME=quickstart
+BROKER_SECRET_NAME=broker-tls
+BROKER_ACCEPTOR_SSL_NAME=ssl
+BROKER_CREDENTIAL_USERNAME=admin
+BROKER_CREDENTIAL_PASSWORD=admin
+
+BROKER_SVC_ACCEPTOR_TCP="${BROKER_NAME}-hdls-svc.${BROKER_NS}.svc.cluster.local"
+BROKER_SVC_ACCEPTOR_SSL="${BROKER_NAME}-${BROKER_ACCEPTOR_SSL_NAME}-0-svc.${BROKER_NS}.svc.cluster.local"
+BROKER_ROUTE_WCONSJ="${BROKER_NAME}-wconsj-0-svc-rte-${BROKER_NS}.${WILDCARD_DOMAIN}"
+BROKER_ROUTE_WCONSJ="${BROKER_NAME}-wconsj-0-svc-rte-${BROKER_NS}.${WILDCARD_DOMAIN}"
+BROKER_ROUTE_ACCEPTOR_SSL="${BROKER_NAME}-ssl-0-svc-rte-${BROKER_NS}.${WILDCARD_DOMAIN}"
+
+# list of variables contents
+cat <<EOF
+BROKER_ACCEPTOR_SSL_NAME   = $BROKER_ACCEPTOR_SSL_NAME
+BROKER_CREDENTIAL_PASSWORD = $BROKER_CREDENTIAL_PASSWORD
+BROKER_CREDENTIAL_USERNAME = $BROKER_CREDENTIAL_USERNAME
+BROKER_NAME                = $BROKER_NAME
+BROKER_NS                  = $BROKER_NS
+BROKER_ROUTE_ACCEPTOR_SSL  = $BROKER_ROUTE_ACCEPTOR_SSL
+BROKER_ROUTE_WCONSJ        = $BROKER_ROUTE_WCONSJ
+BROKER_SECRET_NAME         = $BROKER_SECRET_NAME
+BROKER_SVC_ACCEPTOR_SSL    = $BROKER_SVC_ACCEPTOR_SSL
+BROKER_SVC_ACCEPTOR_TCP    = $BROKER_SVC_ACCEPTOR_TCP
+WILDCARD_DOMAIN            = $WILDCARD_DOMAIN
+EOF
 ```
+
+== One-way TLS Approach
+
+> NOTE: check the session https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.11/html-single/deploying_amq_broker_on_openshift/index#assembly-br-securing-client-connections_broker-ocp[Securing broker-client connections] for: *One-way TLS* or *Two-way TLS* configuration
+
+* Create a `secret` to have access it outside the cluster
+* Create a keystore with selfsigned certificates, for *One-way TLS* approach:
+
+=== Generate Self-Signed Key
+```shell
+# Generate new keystore with a selfsigned key
+$ keytool -genkeypair -keyalg RSA -keystore broker.ks -storetype pkcs12 -storepass changeit -keypass changeit \
+  -dname "CN=${BROKER_NAME}" \
+  -ext "san=dns:${BROKER_SVC_ACCEPTOR_TCP},dns:${BROKER_SVC_ACCEPTOR_SSL},dns:${BROKER_ROUTE_WCONSJ}"
+```
+
+```shell
+# View generated keystore
+$ keytool -list -keystore broker.ks -storepass changeit -v
+Keystore type: PKCS12
+Keystore provider: SUN
+
+Your keystore contains 1 entry
+
+Alias name: mykey
+Creation date: May 18, 2023
+Entry type: PrivateKeyEntry
+Certificate chain length: 1
+Certificate[1]:
+Owner: CN=quickstart
+Issuer: CN=quickstart
+Serial number: 5cd16b028bd99ee7
+Valid from: Thu May 18 17:32:22 BRT 2023 until: Wed Aug 16 17:32:22 BRT 2023
+Certificate fingerprints:
+	 SHA1: 5D:9F:D7:29:38:8B:D4:81:6B:44:3D:36:EF:1D:E0:41:28:EC:81:A1
+	 SHA256: 7D:87:FC:91:1B:42:19:E8:D6:6D:0C:65:78:BD:C8:96:53:A4:6E:40:69:67:01:56:8B:6F:18:59:73:F3:F1:E5
+Signature algorithm name: SHA256withRSA
+Subject Public Key Algorithm: 2048-bit RSA key
+Version: 3
+
+Extensions:
+
+#1: ObjectId: 2.5.29.17 Criticality=false
+SubjectAlternativeName [
+  DNSName: quickstart-hdls-svc.amq.svc.cluster.local
+  DNSName: quickstart-ssl-0-svc.amq.svc.cluster.local
+  DNSName: quickstart-wconsj-0-svc-rte-amq.apps-crc.testing
+]
+
+#2: ObjectId: 2.5.29.14 Criticality=false
+SubjectKeyIdentifier [
+KeyIdentifier [
+0000: 84 87 A0 0B B9 46 D2 5C   FD 48 81 65 DA 03 E1 90  .....F.\.H.e....
+0010: D2 D3 48 8C                                        ..H.
+]
+]
+
+
+
+*******************************************
+*******************************************
+```
+
+==== Secret
+```shell
+# Add keystore to a Secret both as "broker.ks" and "client.ts"
+$ oc create secret generic $BROKER_SECRET_NAME \
+  --from-file=broker.ks=broker.ks \
+  --from-file=client.ts=broker.ks \
+  --from-literal=keyStorePassword=changeit \
+  --from-literal=trustStorePassword=changeit
+
+# label it for a better convenience of search
+$ oc label secret $BROKER_SECRET_NAME quickstart=broker
+```
+
+```shell
+$ oc apply -f - <<EOF
 apiVersion: broker.amq.io/v1beta1
 kind: ActiveMQArtemis
 metadata:
-  name: quickstart
+  labels:
+    quickstart: broker
+  name: "${BROKER_NAME}"
 spec:
-  adminUser: admin
-  adminPassword: admin
+  adminUser: "${BROKER_CREDENTIAL_USERNAME}"
+  adminPassword: "${BROKER_CREDENTIAL_PASSWORD}"
   acceptors:
-    - name: tcp
+    - name: "$BROKER_ACCEPTOR_SSL_NAME"         #### << can be used outside the cluster = external
       port: 61617
       protocols: amqp,core,openwire
+      sslEnabled: true
+      sslSecret: "$BROKER_SECRET_NAME" #### << One-way TLS
+      expose: true
   console:
     expose: true
+    sslEnabled: true
+    sslSecret: "$BROKER_SECRET_NAME"
   deploymentPlan:
     image: placeholder
     size: 1
-    requireLogin: true
+    requireLogin: true   #### << Requires broker authentication
     persistenceEnabled: true
     storage:
       size: 2Gi
@@ -32,69 +155,101 @@ spec:
       limits:
         cpu: "1"
         memory: 2Gi
+EOF
 ```
 
-This will create an AMQ broker with 512Mi heap size (25% of container limit) and 2Gi persistent disk. We can login to the web console with the set admin credentials through a _Route_. The messaging port 61617 is only available through a _Service_ within our K8s cluster at this point.
+> This will create an AMQ broker with `600Mi heap size (25% of container limit) and `2Gi` persistent disk. We can login to the web console with the set *admin* credentials through a _Route_.
 
-To expose the messaging endpoint through a Route, we need to enable SSL. (In this example we also secure the console endpoint using the same certificate, but it's better to use a separate one in a real world scenario.)
-
-Create a keystore with selfsigned certificates:
-
-```
-# Generate new keystore with a selsfigned key
-$ keytool -genkeypair -keyalg RSA -keystore broker.ks -storetype pkcs12 -storepass changeit -keypass changeit -dname 'CN=mybroker' -ext san=dns:mybroker-wconsj-0-svc,dns:mybroker-wconsj-0-svc.myproject.svc,dns:mybroker-ssl-0-svc,dns:mybroker-ssl-0-svc.myproject.svc
-
-# View generated keystore
-$ keytool -list -keystore broker.ks -storepass changeit -v
-Keystore type: PKCS12
-Alias name: mykey
-Entry type: PrivateKeyEntry
-
-# Add keystore to a Secret both as "broker.ks" and "client.ts"
-$ oc create secret generic broker-tls \
-  --from-file=broker.ks=broker.ks \
-  --from-file=client.ts=broker.ks \
-  --from-literal=keyStorePassword=changeit \
-  --from-literal=trustStorePassword=changeit
-```
-
-Create _ActiveMQArtemis_ with ssl enabled:
-
-```
-apiVersion: broker.amq.io/v1beta1
-kind: ActiveMQArtemis
-metadata:
-  name: quickstart
-spec:
-  adminUser: admin
-  adminPassword: admin
-  acceptors:
-    - name: ssl
-      port: 61617
-      protocols: amqp,core,openwire
-      sslEnabled: true
-      sslSecret: broker-tls
-      expose: true
-  console:
-    expose: true
-    sslEnabled: true
-    sslSecret: broker-tls
-  deploymentPlan:
-    ...
-```
+> The messaging port `61617` is only available through a _Service_ within our K8s cluster at this point.
 
 Now the messaging port is accessible from outside the cluster via a _passthrough_ Route. Try to verify with `artemis` CLI:
 
-```
-$ ROUTE=$(oc get route quickstart-ssl-0 -ojsonpath='{.spec.host}')
 
+== Openshift Resources Created
+```shell
+$ oc get secret,ActiveMQArtemis,svc,route,pod -l quickstart=broker -l ActiveMQArtemis=quickstart
+NAME                                   TYPE     DATA   AGE
+secret/broker-tls-internal             Opaque   1      5m59s
+secret/quickstart-credentials-secret   Opaque   4      5m59s
+secret/quickstart-netty-secret         Opaque   2      5m59s
+secret/quickstart-props                Opaque   1      5m59s
+
+NAME                              TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)              AGE
+service/quickstart-hdls-svc       ClusterIP   None           <none>        8161/TCP,61616/TCP   5m59s
+service/quickstart-ping-svc       ClusterIP   None           <none>        8888/TCP             5m59s
+service/quickstart-ssl-0-svc      ClusterIP   10.217.4.106   <none>        61617/TCP            5m59s
+service/quickstart-wconsj-0-svc   ClusterIP   10.217.5.147   <none>        8161/TCP,8162/TCP    5m59s
+
+NAME                                                   HOST/PORT                                             PATH   SERVICES                  PORT       TERMINATION        WILDCARD
+route.route.openshift.io/quickstart-ssl-0-svc-rte      quickstart-ssl-0-svc-rte-amq-02.apps-crc.testing             quickstart-ssl-0-svc      ssl-0      passthrough/None   None
+route.route.openshift.io/quickstart-wconsj-0-svc-rte   quickstart-wconsj-0-svc-rte-amq-02.apps-crc.testing          quickstart-wconsj-0-svc   wconsj-0   passthrough/None   None
+
+NAME                  READY   STATUS    RESTARTS   AGE
+pod/quickstart-ss-0   1/1     Running   0          5m59s
+```
+
+== List Queue info
+```
 # Using CORE protocol
-$ artemis producer --url "tcp://$ROUTE:443?sslEnabled=true&trustStorePath=broker.ks&trustStorePassword=changeit&verifyHost=false" \
-  --user admin --password admin --message-count 1
-
-# Using AMQP protocol
-$ artemis producer --protocol=amqp --url "amqps://$ROUTE:443?transport.verifyHost=false&transport.trustAll=true" \
-  --user admin --password admin --message-count 1
+$ oc exec "${BROKER_NAME}-ss-0" -- /bin/bash /home/jboss/amq-broker/bin/artemis queue stat --user "${BROKER_CREDENTIAL_USERNAME}" --password "${BROKER_CREDENTIAL_PASSWORD}" --url "tcp://${BROKER_NAME}-ss-0:61616"
+Defaulted container "quickstart-container" out of: quickstart-container, quickstart-container-init (init)
+Connection brokerURL = tcp://quickstart-ss-0:61616
+|NAME                     |ADDRESS                  |CONSUMER_COUNT|MESSAGE_COUNT|MESSAGES_ADDED|DELIVERING_COUNT|MESSAGES_ACKED|SCHEDULED_COUNT|ROUTING_TYPE|
+|DLQ                      |DLQ                      |0             |0            |0             |0               |0             |0              |ANYCAST     |
+|ExpiryQueue              |ExpiryQueue              |0             |0            |0             |0               |0             |0              |ANYCAST     |
+|activemq.management.48...|activemq.management.48...|1             |0            |0             |0               |0             |0              |MULTICAST   |
 ```
 
-See link:../send-receive[Send and receive] for more cli examples.
+== Sending and Receiving messages
+```
+QUEUE_NAME=myQueue
+QUEUE_CORE_URL="tcp://${BROKER_ROUTE_ACCEPTOR_SSL}:443?sslEnabled=true&trustStorePath=/etc/broker-tls-volume/broker.ks&trustStorePassword=changeit&verifyHost=false"
+
+# PRODUCER: Using CORE protocol
+$ oc exec "${BROKER_NAME}-ss-0" -- /bin/bash /home/jboss/amq-broker/bin/artemis producer \
+    --url "${QUEUE_CORE_URL}" \
+    --user "${BROKER_CREDENTIAL_USERNAME}" --password "${BROKER_CREDENTIAL_PASSWORD}" \
+    --destination "${QUEUE_NAME}" \
+    --message-count 10
+Defaulted container "quickstart-container" out of: quickstart-container, quickstart-container-init (init)
+Connection brokerURL = tcp://quickstart-ssl-0-svc-rte-amq-02.apps-crc.testing:443?sslEnabled=true&trustStorePath=/etc/broker-tls-volume/broker.ks&trustStorePassword=changeit&verifyHost=false
+Producer ActiveMQQueue[myQueue], thread=0 Started to calculate elapsed time ...
+
+Producer ActiveMQQueue[myQueue], thread=0 Produced: 10 messages
+Producer ActiveMQQueue[myQueue], thread=0 Elapsed time in second : 0 s
+Producer ActiveMQQueue[myQueue], thread=0 Elapsed time in milli second : 170 milli seconds
+
+# You can repeat the "queue stat" command executed before to check...
+
+# CONSUMER: Using AMQP protocol
+QUEUE_AMQP_URL="amqps://${BROKER_ROUTE_ACCEPTOR_SSL}:443?transport.verifyHost=false&transport.trustAll=true"
+
+$ oc exec "${BROKER_NAME}-ss-0" -- /bin/bash /home/jboss/amq-broker/bin/artemis consumer \
+    --url "${QUEUE_AMQP_URL}" \
+    --user "${BROKER_CREDENTIAL_USERNAME}" --password "${BROKER_CREDENTIAL_PASSWORD}" \
+    --destination "${QUEUE_NAME}" \
+    --protocol=amqp \
+    --message-count 1
+Defaulted container "quickstart-container" out of: quickstart-container, quickstart-container-init (init)
+Connection brokerURL = amqps://quickstart-ssl-0-svc-rte-amq-02.apps-crc.testing:443?transport.verifyHost=false&transport.trustAll=true
+Consumer:: filter = null
+2023-05-18 18:00:02,769 WARN  [org.apache.qpid.jms.provider.amqp.builders.AmqpResourceBuilder] Open of resource:(JmsConnectionInfo { ID:f6222aaf-62fe-4d20-af65-dbb4478815ae:1, configuredURI = amqps://quickstart-ssl-0-svc-rte-amq-02.apps-crc.testing:443?transport.verifyHost=false&transport.trustAll=true, connectedURI = null }) failed: Open failed unexpectedly.
+2023-05-18 18:00:02,974 INFO  [org.apache.qpid.jms.JmsConnection] Connection ID:ac0855e3-e0a3-4a72-ac13-d19442c6f9a0:2 connected to server: amqps://quickstart-ssl-0-svc-rte-amq-02.apps-crc.testing:443
+Consumer myQueue, thread=0 wait until 1 messages are consumed
+Consumer myQueue, thread=0 Consumed: 1 messages
+Consumer myQueue, thread=0 Elapsed time in second : 0 s
+Consumer myQueue, thread=0 Elapsed time in milli second : 38 milli seconds
+Consumer myQueue, thread=0 Consumed: 1 messages
+Consumer myQueue, thread=0 Consumer thread finished
+```
+
+> See link:../send-receive/README.adoc[Send and receive] for more cli examples.
+
+== Cleanup
+
+```shell
+$ oc delete secret,ActiveMQArtemis -l quickstart=broker
+```
+
+== References
+* https://artemiscloud.io/docs/tutorials/using_operator/[Using the ArtemisCloud Operator]

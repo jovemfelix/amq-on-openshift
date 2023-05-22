@@ -25,7 +25,7 @@ Installing operators with CLI is more complex, that's what we need to use for an
 
 * *OperatorGroup*: this determines if operators in this namespace are cluster or namespace scoped:
 +
-----
+```yaml
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
@@ -34,24 +34,24 @@ metadata:
 spec:
   targetNamespaces:
   - myproject
-----
+```
 +
 Creating this resource requires cluster level permissions, as it may have an impact on the cluster. A good practice is to get these created in every application namespace part of some automation, so teams can then add `Subscription` CRs - install operators - on their own behalf.
 
 * *Subscription*: This triggers the installation of the operator in this namespace. Having `edit` permission on the namespace is enough.
 +
-----
+```yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: amq-broker-rhel8
 spec:
-  channel: 7.10.x
+  channel: 7.11.x
   installPlanApproval: Automatic
   name: amq-broker-rhel8
   source: redhat-operators
   sourceNamespace: openshift-marketplace
-----
+```
 
 While this practically works to start working with the operator, using `installPlanApproval: Automatic` in a production environment is strictly not recommended. `Automatic` approval means that a new version of the operator is installed as soon as it's released in OpenShift's catalog index. This can cause unexpected Pod restarts or even crushing broker deployments. Operators - as every piece of software - can have bugs and should be tested properly for your use cases in a non-prod environment first.
 
@@ -60,7 +60,7 @@ While this practically works to start working with the operator, using `installP
 To avoid `Automatic` unexpected operator upgrades we need to use `installPlanApproval: Manual`, which requires a deeper understanding of the https://olm.operatorframework.io/[Operator Lifecycle Manager framework]. Approving an operator installation over the OpenShift UI is trivial following the "Upgrade available" link on the "Installed Operators" page, but that doesn't help in case of an automated pipeline or GitOps.
 
 When a `Subscription` is created and `InstallPlan` will show up in the namespace with a random name that we need to patch:
-----
+```yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: InstallPlan
 metadata:
@@ -72,13 +72,14 @@ spec:
   approval: Manual
   approved: false
   clusterServiceVersionNames:
-  - amq-broker-operator.v7.10.1-opr-1
+  - amq-broker-operator.v7.11.0-opr-3
   generation: 1
-----
+```
 
 We need to set `approved: true` to allow the operator installation to progress with a command something like this:
-
-  oc patch installplan/install-123ab --type=json -p='[{"op":"replace","path": "/spec/approved", "value": true}]'`
+```shell
+$ oc patch installplan/install-123ab --type=json -p='[{"op":"replace","path": "/spec/approved", "value": true}]'`
+```
 
 See the example shell script that can be used in a pipeline for approval: link:post-install.sh[post-install.sh]. Also see related https://gexperts.com/wp/gitops-and-openshift-operators-best-practices/[blog post] and https://github.com/redhat-cop/gitops-catalog/tree/main/installplan-approver[GitOps post hook].
 
@@ -91,7 +92,7 @@ Having `admin` permission on the namespace may not be enough to patch the `Insta
 
 Unfortunately OLM was not built a GitOps friendly way, so removing the `Subscription` is not enough to uninstall the operator from a namespace, but we have to delete the `ClusterServiceVersion` too. (Actually it's safe to delete the `Subscription` and `InstallPlan` once the _CSV_ was created and the operator stays in the namespace deployed).
 
-This leads to a common problem when an automated pipeline or GitOps solution removes and recreates the `Subscription` resulting in a `status` error like this: `constraints not satisfiable: clusterserviceversion amq-broker-operator.v7.10.1-opr-1 exists and is not referenced by a subscription`. The workaround is to delete the `ClusterServiceVersion` in a pre-hook or step before the `Subscription` is recreated.
+This leads to a common problem when an automated pipeline or GitOps solution removes and recreates the `Subscription` resulting in a `status` error like this: `constraints not satisfiable: clusterserviceversion amq-broker-operator.v7.11.0-opr-3 exists and is not referenced by a subscription`. The workaround is to delete the `ClusterServiceVersion` in a pre-hook or step before the `Subscription` is recreated.
 
 === Multiple operators in the same namespace
 
@@ -106,24 +107,26 @@ The workaround to avoid these problems is to make sure you never have more than 
 
 === Troubleshooting
 
-When you delete a _Subscription_ via CLI, the related _ClusterServiceVersion_ is not removed (only the _InstallPlan_). Recreating the _Subscription_ will end up with a status error like `clusterserviceversion amq-broker-operator.v7.10.2-opr-1 exists and is not referenced by a subscription`. The solution is to make sure to delete related CSV too before recreating the _Subscription_ as explained above.
+When you delete a _Subscription_ via CLI, the related _ClusterServiceVersion_ is not removed (only the _InstallPlan_). Recreating the _Subscription_ will end up with a status error like `clusterserviceversion amq-broker-operator.v7.11.0-opr-3 exists and is not referenced by a subscription`. The solution is to make sure to delete related CSV too before recreating the _Subscription_ as explained above.
 
 In some rare cases the error message above can still show up despite the CSV was deleted in the namespace. It can be caused by a caching mistake in the OLM framework, you need to restart the `catalog-operator` Pod in the `openshift-operator-lifecycle-manager` namespace to fix that problem.
 
 == Available versions
 
-To install a specific version of the operator theoretically we could use `startingCSV: amq-broker-operator.v7.10.2-opr-2-0.1676475747.p` in the `Subscription`.
+To install a specific version of the operator theoretically we could use `startingCSV: amq-broker-operator.v7.11.0-opr-2` in the `Subscription`.
 
 We can check the latest version available in our catalog-index by running `oc get packagemanifest amq-broker-rhel8 -oyaml` and look for `currentCSV` for the channels. Checking all version available in the catalog-index is more challenging:
 
 * For OpenShift v4.10 catalog:
 +
-  docker run --pull=always --rm registry.redhat.io/redhat/redhat-operator-index:v4.10 render /database/index.db | jq 'select(.schema == "olm.channel" and (.package | startswith("amq-broker")))'
-
+```shell
+docker run --pull=always --rm registry.redhat.io/redhat/redhat-operator-index:v4.10 render /database/index.db | jq 'select(.schema == "olm.channel" and (.package | startswith("amq-broker")))'
+```
 * For OpenShift v4.11+ catalog: 
 +
-  $ docker run --pull=always --rm --entrypoint cat registry.redhat.io/redhat/redhat-operator-index:v4.11 /configs/amq-broker-rhel8/catalog.json | jq 'select(.schema == "olm.channel" and (.package | startswith("amq-broker")))'
-
+```shell
+$ docker run --pull=always --rm --entrypoint cat registry.redhat.io/redhat/redhat-operator-index:v4.11 /configs/amq-broker-rhel8/catalog.json | jq 'select(.schema == "olm.channel" and (.package | startswith("amq-broker")))'
+``
 
 
 

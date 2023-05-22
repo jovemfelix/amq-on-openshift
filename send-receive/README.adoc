@@ -2,7 +2,7 @@
 
 Solutions to send/receive test messages to broker:
 
-* Artemis CLI: https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.10/html-single/getting_started_with_amq_broker/index#producing-consuming-test-messages-getting-started[`artemis producer`], `artemis consumer`, https://activemq.apache.org/components/artemis/documentation/latest/perf-tools.html[`artemis perf`] commands. Can be used for simple tests with `core` or `amqp` protocols. Can send/receive messages from file. https://github.com/apache/activemq-artemis/tree/main/artemis-cli/src/main/java/org/apache/activemq/artemis/cli/commands[Source]
+* Artemis CLI: https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.11/html-single/getting_started_with_amq_broker/index#producing-consuming-test-messages-getting-started[`artemis producer`], `artemis consumer`, https://activemq.apache.org/components/artemis/documentation/latest/perf-tools.html[`artemis perf`] commands. Can be used for simple tests with `core` or `amqp` protocols. Can send/receive messages from file. https://github.com/apache/activemq-artemis/tree/main/artemis-cli/src/main/java/org/apache/activemq/artemis/cli/commands[Source]
 * Fuse/Camel based test app: https://github.com/amq-broker-hub/fuse-artemis-test. Supports CORE, AMQP, Openwire. Implemented for certain use cases; fork and customize for your requirements. 
 * Using JMeter with Artemis: https://github.com/amq-broker-hub/jmeter-artemis-test
 

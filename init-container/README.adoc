@@ -13,7 +13,7 @@ For the container startup scripts see https://github.com/artemiscloud/activemq-a
 
 Related links:
 
-* https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.10/html-single/deploying_amq_broker_on_openshift/index#proc-br-specifying-custom-init-container_broker-ocp
+* https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.11/html-single/deploying_amq_broker_on_openshift/index#proc-br-specifying-custom-init-container_broker-ocp
 * https://access.redhat.com/solutions/6973312
 
 == Custom init container

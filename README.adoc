@@ -4,13 +4,13 @@ https://access.redhat.com/products/red-hat-amq/[Red Hat AMQ Broker] is the produ
 
 Versions at the time of writing:
 
-* AMQ Broker: *7.10.1*
-* AMQ Broker Operator: *7.10.1-opr-1*
+* AMQ Broker: `7.11.x`
+* AMQ Broker Operator: `7.11.0-opr-3`
 
 == Documentation
 
-* Red Hat AMQ Broker v.7.10: https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.10
-** Including operator documentation: https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.10/html/deploying_amq_broker_on_openshift/index
+* Red Hat AMQ Broker v.7.11: https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.11
+** Including operator documentation: https://access.redhat.com/documentation/en-us/red_hat_amq_broker/7.11/html/deploying_amq_broker_on_openshift/index
 * Upstream - Artemis User Manual: https://activemq.apache.org/components/artemis/documentation/
 ** I recommend reading this doc first to understand how Artemis works
 
@@ -51,18 +51,18 @@ Check these repos to find source for Red Hat builds:
 
 == Sections
 
-* link:quickstart[*Quickstart*]
-* link:operator-install[*Install operator*]
-* link:configuration[*Configuration*]
+* link:quickstart/README.adoc[*Quickstart*]
+* link:operator-install/README.adoc[*Install operator*]
+* link:configuration/README.adoc[*Configuration*]
 * *Web console*
-* link:init-container[*Init container*]
-* link:authentication[*Authentication*]
-* link:logging[*Logging*]
-* link:monitoring[*Monitoring*]
-* link:cicd[*CI/CD*]
-* link:send-receive[*Send and receive messages*]
-* link:troubleshooting[*Troubleshooting*]
-* link:known-issues[*Known issues*]
+* link:init-container/README.adoc[*Init container*]
+* link:authentication/README.adoc[*Authentication*]
+* link:logging/README.adoc[*Logging*]
+* link:monitoring/README.adoc[*Monitoring*]
+* link:cicd/README.adoc[*CI/CD*]
+* link:send-receive/README.adoc[*Send and receive messages*]
+* link:troubleshooting/README.adoc[*Troubleshooting*]
+* link:known-issues/README.adoc[*Known issues*]
 
 
 // * DR: https://github.com/ryanezil/amq-mirroring-openshift
